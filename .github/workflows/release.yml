@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR / GitHub release
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  cases:
+    name: Attach the cases to the release
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install project
+        run: uv sync --locked --no-dev
+
+      - uses: ./.github/actions/openscad
+
+      - name: Build the cases
+        run: uv run cycling-cases build --out dist
+
+      - name: Pack them together
+        run: zip -j -r "cycling-cases-${TAG}.zip" dist
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Attach to the release
+        run: gh release upload "$TAG" dist/* "cycling-cases-${TAG}.zip" --clobber
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
