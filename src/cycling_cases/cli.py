@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from . import __version__, preview, solid
-from .cases import CASES, build, sources_dir
+from .cases import CASES, build, case, sources_dir
 from .mesh import edge_counts, health, parts, read_stl, write_stl
 
 
@@ -70,6 +70,8 @@ def command_split(args: argparse.Namespace) -> int:
 
 def command_preview(args: argparse.Namespace) -> int:
     """Отрендерить PNG по каждому чехлу — чтобы посмотреть глазами."""
+    if args.slug:
+        case(args.slug)
     out = Path(args.out)
     for item in CASES:
         if args.slug and item.slug != args.slug:

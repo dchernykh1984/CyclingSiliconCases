@@ -15,7 +15,7 @@ description: Как править скачанный чехол — рецеп�
 ```python
 def garmin_830(source: Triangles) -> Manifold:
     body = solid.from_triangles(source)
-    body = body - solid.prism(window, near, far, axis=0)   # окно под кнопку
+    body = body - solid.prism(window, near, far, axis=0)  # окно под кнопку
     body = body + panel.measure(...).emboss(line, RELIEF)  # надпись
     return body
 ```
