@@ -81,6 +81,16 @@ def write_stl(path: Path, triangles: Triangles) -> Path:
     return path
 
 
+CHUNK = 2_000_000
+"""Сколько пар «луч × треугольник» считать за один заход.
+
+Мёллер—Трумбор на numpy держит в памяти массивы размером
+лучи × треугольники × 3. Две тысячи лучей по четырём тысячам
+треугольников — это уже 700 МБ, а замер площадки под надпись пускает
+их тысячами. Поэтому лучи идут пачками: время то же, память постоянная.
+"""
+
+
 def ray_distances(
     triangles: Triangles, origins: Points, direction: Direction
 ) -> NDArray[np.float64]:
@@ -103,14 +113,25 @@ def ray_distances(
     sideways, determinant = sideways[usable], determinant[usable]
 
     probes = np.atleast_2d(np.asarray(origins, dtype=np.float64))
-    offsets = probes[:, None, :] - starts[None, :, :]
-    u = np.einsum("ijk,jk->ij", offsets, sideways) / determinant
-    across = np.cross(offsets, first[None, :, :])
-    v = (across @ ray) / determinant
-    along = np.einsum("jk,ijk->ij", second, across) / determinant
+    if len(starts) == 0:
+        # Ни одного треугольника, который луч может пересечь: все
+        # оставшиеся параллельны ему. Без этой ветки `min` по пустой
+        # оси уронил бы замер вместо честного «промах».
+        return np.full(len(probes), np.inf)
 
-    hit = (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (along > 1e-9)
-    return np.where(hit.any(axis=1), np.where(hit, along, np.inf).min(axis=1), np.inf)
+    batch = max(1, CHUNK // len(starts))
+    answer = np.empty(len(probes), dtype=np.float64)
+    for low in range(0, len(probes), batch):
+        part = probes[low : low + batch]
+        offsets = part[:, None, :] - starts[None, :, :]
+        u = np.einsum("ijk,jk->ij", offsets, sideways) / determinant
+        across = np.cross(offsets, first[None, :, :])
+        v = (across @ ray) / determinant
+        along = np.einsum("jk,ijk->ij", second, across) / determinant
+
+        hit = (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (along > 1e-9)
+        answer[low : low + len(part)] = np.where(hit, along, np.inf).min(axis=1)
+    return answer
 
 
 def bounds(triangles: Triangles) -> tuple[Points, Points]:

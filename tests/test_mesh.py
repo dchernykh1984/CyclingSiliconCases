@@ -173,3 +173,21 @@ def test_many_rays_at_once() -> None:
     hits = ray_distances(mesh, origins, (0, 0, -1))
     assert hits[:3] == pytest.approx([70.0, 70.0, 70.0])
     assert not np.isfinite(hits[3])
+
+
+def test_rays_survive_a_mesh_they_cannot_hit() -> None:
+    # Все треугольники параллельны лучу: пересекать нечего. Раньше
+    # `min` по пустой оси ронял замер вместо честного «промах».
+    flat = np.array([[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]])
+    hits = ray_distances(flat, np.array([[0.2, 0.2, 5.0], [9.0, 9.0, 5.0]]), (1, 0, 0))
+    assert not np.isfinite(hits).any()
+
+
+def test_chunking_does_not_change_the_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Лучи считаются пачками, чтобы память не росла с их числом.
+    # Размер пачки не должен влиять на результат.
+    mesh = box(10, 20, 30, (0, 0, 0))
+    origins = np.array([[x, 10.0, 100.0] for x in np.linspace(0.5, 9.5, 40)])
+    whole = ray_distances(mesh, origins, (0, 0, -1))
+    monkeypatch.setattr("cycling_cases.mesh.CHUNK", 1)
+    assert ray_distances(mesh, origins, (0, 0, -1)) == pytest.approx(whole)
