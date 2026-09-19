@@ -17,6 +17,7 @@ from cycling_cases.mesh import (
     health,
     is_inside,
     is_watertight,
+    ray_distances,
     read_stl,
     section,
     size,
@@ -134,3 +135,41 @@ def test_text_stl_is_rejected(tmp_path: Path) -> None:
     path.write_text("solid box\n facet normal 0 0 1\n" + "x" * 100, encoding="utf-8")
     with pytest.raises(ValueError, match="бинарный"):
         read_stl(path)
+
+
+def test_ray_hits_the_near_face() -> None:
+    mesh = box(10, 20, 30, (0, 0, 0))
+    hit = ray_distances(mesh, np.array([[5.0, 10.0, 100.0]]), (0, 0, -1))
+    assert hit[0] == pytest.approx(70.0)
+
+
+def test_ray_that_misses_returns_infinity() -> None:
+    mesh = box(10, 20, 30, (0, 0, 0))
+    hit = ray_distances(mesh, np.array([[50.0, 10.0, 100.0]]), (0, 0, -1))
+    assert not np.isfinite(hit[0])
+
+
+def test_ray_ignores_what_is_behind_it() -> None:
+    # Замер стенки идёт лучом снаружи внутрь, и грань за спиной луча —
+    # это противоположная стенка: приняв её за свою, замер молча
+    # показал бы толщину всей детали.
+    mesh = box(10, 20, 30, (0, 0, 0))
+    hit = ray_distances(mesh, np.array([[5.0, 10.0, 100.0]]), (0, 0, 1))
+    assert not np.isfinite(hit[0])
+
+
+def test_ray_distances_measure_a_wall() -> None:
+    # Две грани подряд вдоль луча — это и есть толщина стенки.
+    mesh = np.concatenate([box(2, 20, 30, (0, 0, 0)), box(2, 20, 30, (10, 0, 0))])
+    first = ray_distances(mesh, np.array([[-5.0, 10.0, 15.0]]), (1, 0, 0))[0]
+    second = ray_distances(mesh, np.array([[-5.0 + first + 1e-3, 10.0, 15.0]]), (1, 0, 0))[0]
+    assert first == pytest.approx(5.0)
+    assert second == pytest.approx(2.0, abs=1e-2)
+
+
+def test_many_rays_at_once() -> None:
+    mesh = box(10, 20, 30, (0, 0, 0))
+    origins = np.array([[x, 10.0, 100.0] for x in (2.0, 5.0, 8.0, 50.0)])
+    hits = ray_distances(mesh, origins, (0, 0, -1))
+    assert hits[:3] == pytest.approx([70.0, 70.0, 70.0])
+    assert not np.isfinite(hits[3])

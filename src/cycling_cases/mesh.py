@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import struct
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,9 @@ Triangles = NDArray[np.float64]
 
 Points = NDArray[np.float64]
 """Точки как массив (N, 2) или (N, 3)."""
+
+Direction = Sequence[float] | Points
+"""Направление луча: хоть кортеж, хоть массив — нормируем сами."""
 
 WELD = 4
 """До скольких знаков округляются координаты при сшивании вершин.
@@ -75,6 +79,38 @@ def write_stl(path: Path, triangles: Triangles) -> Path:
         handle.write(struct.pack("<I", len(triangles)))
         handle.write(records.tobytes())
     return path
+
+
+def ray_distances(
+    triangles: Triangles, origins: Points, direction: Direction
+) -> NDArray[np.float64]:
+    """До ближайшей грани вдоль луча из каждой точки; `inf`, если промах.
+
+    Мёллер—Трумбор без ускоряющих структур: лучей мы пускаем тысячи,
+    а треугольников в сетке тысячи, и произведение считается numpy за
+    доли секунды. Дерево здесь только усложнило бы код.
+    """
+    starts = triangles[:, 0]
+    first = triangles[:, 1] - starts
+    second = triangles[:, 2] - starts
+    ray = np.asarray(direction, dtype=np.float64)
+    ray = ray / np.linalg.norm(ray)
+
+    sideways = np.cross(ray, second)
+    determinant = np.einsum("ij,ij->i", first, sideways)
+    usable = np.abs(determinant) > 1e-12
+    starts, first, second = starts[usable], first[usable], second[usable]
+    sideways, determinant = sideways[usable], determinant[usable]
+
+    probes = np.atleast_2d(np.asarray(origins, dtype=np.float64))
+    offsets = probes[:, None, :] - starts[None, :, :]
+    u = np.einsum("ijk,jk->ij", offsets, sideways) / determinant
+    across = np.cross(offsets, first[None, :, :])
+    v = (across @ ray) / determinant
+    along = np.einsum("jk,ijk->ij", second, across) / determinant
+
+    hit = (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (along > 1e-9)
+    return np.where(hit.any(axis=1), np.where(hit, along, np.inf).min(axis=1), np.inf)
 
 
 def bounds(triangles: Triangles) -> tuple[Points, Points]:
