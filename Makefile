@@ -13,7 +13,7 @@ help:
 	@echo ""
 	@echo "Чехлы:"
 	@echo "  make build       собрать STL в ./$(DIST)"
-	@echo "  make preview     отрендерить PNG в ./$(PREVIEW) (нужен openscad)"
+	@echo "  make preview     отрендерить PNG в ./$(PREVIEW)"
 	@echo "  make inspect     показать, из каких тел состоят исходники"
 	@echo ""
 	@echo "  make clean       удалить ./$(DIST), ./$(PREVIEW) и кэши"

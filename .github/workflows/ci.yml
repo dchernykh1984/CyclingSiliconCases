@@ -74,13 +74,12 @@ jobs:
       - name: Install project
         run: uv sync --locked
 
-      - uses: ./.github/actions/openscad
-
       - name: Build the cases
         run: uv run cycling-cases build --out dist
 
-      # Превью рендерится и тогда, когда правок ещё нет: так видно, что
-      # OpenSCAD на раннере жив и открывает наши исходники.
+      # Превью рендерится в каждой сборке: картинки прикладываются к
+      # прогону, и на них видно то, чего не поймает ни один замер, —
+      # например, что надпись села на скругление, а не на стенку.
       - name: Render previews
         run: uv run cycling-cases preview --out preview
 
