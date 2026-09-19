@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint & types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install project
+        run: uv sync --locked
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # Тот же набор проверок, что и на локальном коммите: ruff, mypy
+      # и гигиена файлов.
+      - name: pre-commit
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  tests:
+    name: Tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install project
+        run: uv sync --locked
+
+      - name: pytest
+        run: uv run pytest
+
+  build:
+    name: Build cases
+    needs: [quality, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install project
+        run: uv sync --locked
+
+      - uses: ./.github/actions/openscad
+
+      - name: Build the cases
+        run: uv run cycling-cases build --out dist
+
+      # Превью рендерится и тогда, когда правок ещё нет: так видно, что
+      # OpenSCAD на раннере жив и открывает наши исходники.
+      - name: Render previews
+        run: uv run cycling-cases preview --out preview
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cases
+          path: dist/
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: previews
+          path: preview/*.png
+          retention-days: 14

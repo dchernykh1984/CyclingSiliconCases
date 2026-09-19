@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "f92efb8ae8e3ab4885769b39784c88020f1094eb",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "cycling-silicon-cases",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "include-component-in-tag": false,
+      "extra-files": [
+        "src/cycling_cases/__init__.py"
+      ],
+      "changelog-sections": [
+        { "type": "feat", "section": "Новое" },
+        { "type": "fix", "section": "Исправления" },
+        { "type": "docs", "section": "Документация" },
+        { "type": "perf", "section": "Производительность" },
+        { "type": "refactor", "section": "Рефакторинг" },
+        { "type": "build", "section": "Сборка", "hidden": true },
+        { "type": "ci", "section": "CI", "hidden": true },
+        { "type": "chore", "section": "Прочее", "hidden": true },
+        { "type": "test", "section": "Тесты", "hidden": true },
+        { "type": "style", "section": "Оформление кода", "hidden": true }
+      ]
+    }
+  }
+}
