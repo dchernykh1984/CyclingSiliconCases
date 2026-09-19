@@ -1,0 +1,5 @@
+Roboto-Black.ttf — шрифт Roboto, Copyright 2011 Google Inc.
+Лицензия Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Файл лежит в репозитории копией намеренно: надпись на чехле должна
+получаться одинаковой на любой машине, а системные шрифты у всех разные.
