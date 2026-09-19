@@ -103,7 +103,13 @@ def case(slug: str) -> Case:
 
 
 def build(directory: Path, only: str | None = None) -> list[Path]:
-    """Собрать чехлы в каталог."""
+    """Собрать чехлы в каталог.
+
+    Опечатка в имени чехла — не пустая сборка, а ошибка: молча собрать
+    ноль файлов и выйти с нулём хуже, чем сказать, что такого чехла нет.
+    """
+    if only is not None:
+        case(only)
     directory.mkdir(parents=True, exist_ok=True)
     built = []
     for item in CASES:

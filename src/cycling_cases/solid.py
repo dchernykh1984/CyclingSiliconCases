@@ -57,6 +57,16 @@ def load(path: Path) -> Manifold:
 
 
 def save(body: Manifold, path: Path) -> Path:
+    """Записать тело в STL, убедившись, что записывать есть что.
+
+    Сорванная булева операция возвращает пустое тело, а не исключение.
+    Без этой проверки в релиз уехал бы STL на 84 байта, и заметили бы
+    это уже на столе принтера.
+    """
+    if body.status().name != "NoError":
+        raise ValueError(f"{path.name}: тело собралось с ошибкой {body.status().name}")
+    if body.is_empty() or body.num_tri() == 0:
+        raise ValueError(f"{path.name}: тело пустое — булева операция срезала всё")
     return write_stl(path, to_triangles(body))
 
 

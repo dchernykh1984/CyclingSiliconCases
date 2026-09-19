@@ -117,7 +117,7 @@ numpy, без ускоряющих структур: тысяча лучей п�
 # первая грань — наружная поверхность, вторая — внутренняя
 outer = ray_distances(mesh, start[None, :], -normal)[0]
 inner = ray_distances(mesh, (start - normal * (outer + 1e-4))[None, :], -normal)[0]
-thickness = inner            # толщина стенки в этой точке
+thickness = inner  # толщина стенки в этой точке
 ```
 
 Три приёма, которые окупились:
@@ -135,11 +135,12 @@ thickness = inner            # толщина стенки в этой точк�
 ## Площадка на стенке
 
 ```python
-area = panel.measure(mesh, axis=1, sign=1, origin=(0, 0, 17.2),
-                     u_range=(-17.8, 17.8), v_range=(-2.6, 2.6))
-area.misses        # узлы, не попавшие в материал: не ноль — надпись вылезла
-area.relief_span   # насколько поверхность уходит вглубь по площадке
-area.tilt          # наибольший наклон поверхности, градусы
+area = panel.measure(
+    mesh, axis=1, sign=1, origin=(0, 0, 17.2), u_range=(-17.8, 17.8), v_range=(-2.6, 2.6)
+)
+area.misses  # узлы, не попавшие в материал: не ноль — надпись вылезла
+area.relief_span  # насколько поверхность уходит вглубь по площадке
+area.tilt  # наибольший наклон поверхности, градусы
 ```
 
 Дальше `area.emboss(line, relief)` возвращает надпись, уже лежащую по

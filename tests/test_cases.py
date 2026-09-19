@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from manifold3d import Manifold
 
 from conftest import depth_to_material, inner_face
 from cycling_cases import cases, panel, recipes, solid
@@ -357,3 +358,44 @@ def test_840_keeps_the_retaining_lip(built: dict[str, Triangles]) -> None:
         return right - left
 
     assert cavity(SHIFT[2] + 8.5) < cavity(BAND_Z) - 1.0
+
+
+# --------------------------------------------------------------------------
+# отказы вместо тихих пустышек
+# --------------------------------------------------------------------------
+
+
+def test_build_refuses_an_unknown_slug(tmp_path: Path) -> None:
+    # Опечатка в имени не должна оборачиваться пустой сборкой с кодом 0.
+    with pytest.raises(KeyError):
+        build(tmp_path, only="garmin-84")
+
+
+def test_preview_refuses_an_unknown_slug() -> None:
+    with pytest.raises(KeyError):
+        main(["preview", "--slug", "garmin-84", "--out", "preview"])
+
+
+def test_saving_an_empty_body_is_refused(tmp_path: Path) -> None:
+    """Сорванная булева операция возвращает пустое тело, а не исключение.
+
+    Без проверки в релиз уехал бы STL на 84 байта, и заметили бы это
+    уже на столе принтера.
+    """
+    cube = Manifold.cube([10.0, 10.0, 10.0])
+    with pytest.raises(ValueError, match="пустое"):
+        solid.save(cube - cube, tmp_path / "empty.stl")
+
+
+def test_emboss_refuses_a_panel_that_missed_the_wall(sources: dict[str, Triangles]) -> None:
+    """Надпись, не попавшая на стенку, — это ошибка, а не пустое тело.
+
+    Промах означает бесконечную высоту в узле замера: плитка с буквами
+    уехала бы в бесконечность, а manifold вернул бы пустое тело молча.
+    """
+    beyond = panel.measure(
+        sources["garmin-830"], 1, 1, (0.0, 0.0, recipes.E830_TEXT_Z), (-40.0, 40.0), (-2.6, 2.6)
+    )
+    assert beyond.misses > 0
+    with pytest.raises(ValueError, match="вышла за стенку"):
+        beyond.emboss(recipes._lettering(recipes.E830_CAP), recipes.RELIEF)

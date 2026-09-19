@@ -114,6 +114,15 @@ class Panel:
         высоту поверхности. Внутрь стенки плитка уходит на `sink` —
         иначе объединение оставит буквы отдельными телами.
         """
+        if self.misses:
+            # Промах означает, что луч не встретил материала: высота в
+            # этом узле бесконечна, плитка уедет в бесконечность, и
+            # manifold вернёт пустое тело вместо ошибки. Лучше сказать
+            # сразу и цифрами.
+            raise ValueError(
+                f"площадка под надпись вышла за стенку: {self.misses} узлов "
+                f"из {self.heights.size} не попали в материал"
+            )
         section = CrossSection([np.asarray(c) for c in lettering.contours], FillRule.NonZero)
         plate = Manifold.extrude(section, sink + relief).translate([0.0, 0.0, -sink])
         plate = plate.refine_to_length(REFINE)
