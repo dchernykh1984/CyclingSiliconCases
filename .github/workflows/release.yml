@@ -43,8 +43,6 @@ jobs:
       - name: Install project
         run: uv sync --locked --no-dev
 
-      - uses: ./.github/actions/openscad
-
       - name: Build the cases
         run: uv run cycling-cases build --out dist
 
