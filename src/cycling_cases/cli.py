@@ -6,48 +6,45 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from . import __version__
-from .cases import CASES, build, case, sources_dir
-from .mesh import edge_counts, health, parts, read_stl
-from .openscad import RenderTask, run
+import numpy as np
 
-PREVIEW_CAMERAS: dict[str, str] = {
-    "top": "0,0,0,0,0,0,0",
-    "iso": "0,0,0,60,0,25,0",
-    "front": "0,0,0,90,0,0,0",
-}
-"""Камеры для превью: сверху, в три четверти и сбоку.
-
-Три ракурса — минимум, на котором видно и раскладку, и стенки. Один вид
-врёт: деталь, съехавшая по высоте, сверху выглядит идеально.
-"""
+from . import __version__, preview, solid
+from .cases import CASES, build, sources_dir
+from .mesh import edge_counts, health, parts, read_stl, write_stl
 
 
-def command_build(args: argparse.Namespace) -> int:
-    for path in build(Path(args.out), binary=args.openscad):
-        print(path)
-    return 0
+def _find(name: str) -> Path:
+    path = Path(name)
+    if path.exists():
+        return path
+    candidate = sources_dir() / name
+    return candidate if candidate.exists() else path
 
 
 def command_list(args: argparse.Namespace) -> int:
     for item in CASES:
-        state = "своя модель" if item.modified else "копия исходника"
-        print(f"{item.slug:12s}  {item.title:28s}  {state}")
+        print(f"{item.slug:12s}  {item.title:28s}  из {item.source_name}")
         if item.comment:
             print(f"{'':12s}  {item.comment}")
+    return 0
+
+
+def command_build(args: argparse.Namespace) -> int:
+    for path in build(Path(args.out), only=args.slug):
+        triangles = read_stl(path)
+        low, high = triangles.reshape(-1, 3).min(axis=0), triangles.reshape(-1, 3).max(axis=0)
+        print(f"{path}  {len(triangles)} тр.  {np.round(high - low, 2)} мм  {health(triangles)}")
     return 0
 
 
 def command_inspect(args: argparse.Namespace) -> int:
     """Показать, что лежит в файле: тела, размеры, замкнутость.
 
-    Скачанные модели часто оказываются целой раскладкой на стол, и первое,
-    что нужно знать перед правкой, — из скольких тел она состоит.
+    Скачанные модели часто оказываются целой раскладкой на стол, и
+    первое, что нужно знать перед правкой, — из скольких тел она
+    состоит.
     """
-    path = Path(args.stl)
-    if not path.exists():
-        candidate = sources_dir() / args.stl
-        path = candidate if candidate.exists() else path
+    path = _find(args.stl)
     triangles = read_stl(path)
     found = parts(triangles)
     print(f"{path.name}: {len(triangles)} треугольников, тел {len(found)}")
@@ -60,54 +57,36 @@ def command_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_preview(args: argparse.Namespace) -> int:
-    """Отрендерить PNG по каждому чехлу — чтобы посмотреть глазами."""
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    viewer = Path(args.viewer) if args.viewer else None
-    for item in CASES:
-        model = item.model
-        for name, camera in PREVIEW_CAMERAS.items():
-            target = out / f"{item.slug}-{name}.png"
-            if model is None:
-                source = item.source.resolve()
-                scratch = out / f"{item.slug}.scad"
-                scratch.write_text(f'import("{source}");\n', encoding="utf-8")
-                task = RenderTask(filename=target.name, model=scratch)
-            else:
-                task = RenderTask(filename=target.name, model=model, definitions=item.definitions)
-            run(
-                target,
-                task,
-                binary=args.openscad,
-                render=True,
-                extra=[
-                    f"--imgsize={args.width},{args.height}",
-                    f"--camera={camera}",
-                    "--viewall",
-                    "--autocenter",
-                    "--colorscheme=Tomorrow",
-                ],
-            )
-            print(target)
-    if viewer is not None:  # pragma: no cover - удобство, не логика
-        print(f"смотреть: {viewer}")
-    return 0
-
-
 def command_split(args: argparse.Namespace) -> int:
     """Разложить файл на отдельные тела — по STL на тело."""
-    from .mesh import write_stl
-
-    path = Path(args.stl)
-    if not path.exists():
-        candidate = sources_dir() / args.stl
-        path = candidate if candidate.exists() else path
+    path = _find(args.stl)
     out = Path(args.out)
-    stem = case(args.slug).slug if args.slug else path.stem.lower()
+    stem = path.stem.lower()
     for part in parts(read_stl(path)):
         target = write_stl(out / f"{stem}-part-{part.number}.stl", part.triangles)
         print(f"{target}  {part.describe()}")
+    return 0
+
+
+def command_preview(args: argparse.Namespace) -> int:
+    """Отрендерить PNG по каждому чехлу — чтобы посмотреть глазами."""
+    out = Path(args.out)
+    for item in CASES:
+        if args.slug and item.slug != args.slug:
+            continue
+        triangles = solid.to_triangles(item.build())
+        flat = triangles.reshape(-1, 3)
+        centre = (flat.min(axis=0) + flat.max(axis=0)) / 2
+        for name, offset in preview.CAMERAS.items():
+            target = out / f"{item.slug}-{name}.png"
+            preview.render(
+                triangles,
+                target,
+                eye=tuple(centre + np.asarray(offset)),
+                target=tuple(centre),
+                size=(args.width, args.height),
+            )
+            print(target)
     return 0
 
 
@@ -117,18 +96,14 @@ def build_parser() -> argparse.ArgumentParser:
         description="Чехлы для велокомпьютеров Garmin: сборка и разбор моделей",
     )
     parser.add_argument("--version", action="version", version=__version__)
-    parser.add_argument(
-        "--openscad",
-        default=None,
-        help="путь к бинарю openscad (по умолчанию из PATH или $OPENSCAD)",
-    )
     commands = parser.add_subparsers(dest="command", required=True)
 
     listing = commands.add_parser("list", help="перечислить чехлы")
     listing.set_defaults(handler=command_list)
 
-    builder = commands.add_parser("build", help="собрать все чехлы в каталог")
+    builder = commands.add_parser("build", help="собрать чехлы в каталог")
     builder.add_argument("--out", default="dist", help="куда складывать STL")
+    builder.add_argument("--slug", default=None, help="собрать только один чехол")
     builder.set_defaults(handler=command_build)
 
     inspector = commands.add_parser("inspect", help="что лежит в STL: тела, размеры, замкнутость")
@@ -138,21 +113,18 @@ def build_parser() -> argparse.ArgumentParser:
     splitter = commands.add_parser("split", help="разложить STL на отдельные тела")
     splitter.add_argument("stl", help="путь к файлу или имя файла в input_data")
     splitter.add_argument("--out", default="dist/parts", help="куда складывать тела")
-    splitter.add_argument("--slug", default=None, help="имя чехла для префикса файлов")
     splitter.set_defaults(handler=command_split)
 
-    preview = commands.add_parser("preview", help="отрендерить превью каждого чехла")
-    preview.add_argument("--out", default="preview", help="куда складывать PNG")
-    preview.add_argument("--width", type=int, default=900)
-    preview.add_argument("--height", type=int, default=800)
-    preview.add_argument("--viewer", default=None, help=argparse.SUPPRESS)
-    preview.set_defaults(handler=command_preview)
+    viewer = commands.add_parser("preview", help="отрендерить превью каждого чехла")
+    viewer.add_argument("--out", default="preview", help="куда складывать PNG")
+    viewer.add_argument("--slug", default=None, help="только один чехол")
+    viewer.add_argument("--width", type=int, default=900)
+    viewer.add_argument("--height", type=int, default=700)
+    viewer.set_defaults(handler=command_preview)
 
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    handler = args.handler
-    return int(handler(args))
+    args = build_parser().parse_args(argv)
+    return int(args.handler(args))

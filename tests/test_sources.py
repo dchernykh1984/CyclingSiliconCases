@@ -11,6 +11,8 @@ import pytest
 
 from cycling_cases.cases import CASES, sources_dir
 from cycling_cases.mesh import edge_counts, is_watertight, parts, read_stl
+from cycling_cases.recipes import E840_BUTTON_POCKETS, E840_PART, pick_case
+from walls import thin_wall_runs, wall_thickness
 
 TOLERANCE = 0.05
 """Допуск на габариты, мм. Сетка лежит во float32, отсюда шум в сотых."""
@@ -78,3 +80,27 @@ def test_the_840_case_body_touches_itself() -> None:
     counts = edge_counts(triangles)
     assert 1 not in counts, "в раскладке 840 появились дырки"
     assert counts.get(4) == 4, "самокасания в чехле 840 изменились"
+
+
+def test_the_840_case_has_its_buttons_marked_from_the_inside() -> None:
+    """Автор исходника разметил кнопки карманами в полости.
+
+    Точных координат кнопок Edge 840 нет ни в мануале, ни в обзорах, и
+    окна мы режем ровно по этим карманам. Если исходник заменят, а
+    карманы окажутся в других местах, окна уедут мимо кнопок — поэтому
+    разметка проверяется как приёмка, с цифрами.
+    """
+    case = pick_case(read_stl(sources_dir() / "Garmin840.stl"), E840_PART)
+    for sign, expected in E840_BUTTON_POCKETS.items():
+        found = tuple(pocket for pocket in thin_wall_runs(case, sign) if pocket[1] - pocket[0] > 3)
+        assert len(found) == len(expected), f"бок {sign:+d}: число карманов изменилось"
+        for (start, finish), (want_start, want_finish) in zip(found, expected, strict=True):
+            assert start == pytest.approx(want_start, abs=TOLERANCE)
+            assert finish == pytest.approx(want_finish, abs=TOLERANCE)
+
+
+def test_the_840_pockets_are_thinner_than_the_ribs() -> None:
+    """Карман — это стенка 0.75 мм, ребро между карманами — 1.75 мм."""
+    case = pick_case(read_stl(sources_dir() / "Garmin840.stl"), E840_PART)
+    assert wall_thickness(case, -1, 60.0) == pytest.approx(0.75, abs=0.1), "середина кармана"
+    assert wall_thickness(case, -1, 47.0) == pytest.approx(1.75, abs=0.1), "ребро перед карманом"
