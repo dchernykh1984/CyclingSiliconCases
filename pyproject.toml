@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cycling-silicon-cases"
+dynamic = ["version"]
+description = "Чехлы для велокомпьютеров Garmin: сборка печатных STL из исходных моделей"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+]
+
+[project.scripts]
+cycling-cases = "cycling_cases.cli:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "pre-commit>=3.7",
+    "pytest>=8.2",
+    "ruff>=0.6",
+]
+
+# Версия проекта живёт в одном месте — в `__init__.py`. Если держать её здесь,
+# релизный PR правит pyproject, а `uv.lock` остаётся со старой версией, и
+# `uv sync --locked` в CI падает. При dynamic-версии uv не пишет её в лок,
+# а release-please сам пропускает pyproject и правит `__init__.py`.
+[tool.setuptools.dynamic]
+version = { attr = "cycling_cases.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cycling_cases = ["assets/models/*.scad"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "RUF"]
+# Комментарии и докстринги на русском: кириллица в строках это норма,
+# а не «похожий на латиницу» символ.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+# Проверяем на 3.12, хотя пакет держит 3.11: типы numpy написаны синтаксисом
+# `type ...` из 3.12, и на более старой цели mypy падает на них самих.
+# Совместимость с 3.11 ловит матрица pytest в CI.
+python_version = "3.12"
+files = ["src", "tests"]
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
