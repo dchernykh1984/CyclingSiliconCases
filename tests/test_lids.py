@@ -13,12 +13,16 @@ import pytest
 
 from cycling_cases import cases, lettering, panel, recipes, solid
 from cycling_cases.cases import COMPANIONS
-from cycling_cases.mesh import Triangles, edge_counts, parts
+from cycling_cases.mesh import Triangles, distance_to_outline, edge_counts, is_inside, parts
 
 LIDS = ("can-lid", "bottle-cap")
 
-FLAT_RADIUS = {"can-lid": 36.0, "bottle-cap": 35.0}
-"""Радиус плоской площадки наружного торца, мм — дальше идёт скругление."""
+FLAT_RADIUS = {"can-lid": 38.1, "bottle-cap": 35.3}
+"""Радиус плоской площадки наружного торца, мм — дальше идёт скругление.
+
+Снято лучами по исходникам: луч идёт вдоль оси крышки и ищет, с какого
+радиуса торец перестаёт быть плоским.
+"""
 
 AXIS = {"can-lid": 2, "bottle-cap": 1}
 """Вдоль какой оси лежит ось крышки в исходнике: у фляжки она на боку."""
@@ -112,5 +116,54 @@ def test_companions_are_shipped_as_sources_only() -> None:
     for item in COMPANIONS:
         assert item.source.is_file(), f"нет исходника {item.source_name}"
         assert cases.case(item.lid_slug), "у сосуда должна быть своя крышка"
-    built = {item.slug for item in cases.CASES}
-    assert not built & {item.source_name for item in COMPANIONS}
+    shipped = {item.source_name for item in cases.CASES}
+    assert not shipped & {item.source_name for item in COMPANIONS}
+
+
+@pytest.mark.parametrize("slug", LIDS)
+def test_lettering_lands_letter_for_letter(lids: dict[str, Triangles], slug: str) -> None:
+    """Буквы стоят ровно там, где их нарисовал шрифт.
+
+    Это проверка на разворот и на зеркало. Крышку приходится
+    переворачивать, чтобы надпись смотрела вверх, и поворот не вокруг
+    той оси даёт строку вверх ногами, а `mirror` — отражённые буквы.
+    И то, и другое проходит мимо всех остальных проверок: рельеф,
+    габарит и радиус у перевёрнутой надписи те же самые.
+
+    Обе крышки после разворота кладут строку так, что её собственные
+    координаты совпадают с X и Y детали, — поэтому контуры шрифта
+    сравниваются с деталью напрямую.
+    """
+    line = lettering.line(recipes.SLOGAN, recipes.LID_CAP).centred()
+    segments = [
+        ((float(a[0]), float(a[1])), (float(b[0]), float(b[1])))
+        for contour in line.contours
+        for a, b in zip(contour, np.roll(contour, -1, axis=0), strict=True)
+    ]
+
+    low, high = line.extent()
+    face = panel.measure(
+        lids[slug],
+        2,
+        1,
+        (0.0, 0.0, 0.0),
+        (float(low[0]) - 1.0, float(high[0]) + 1.0),
+        (float(low[1]) - 1.0, float(high[1]) + 1.0),
+        step=0.5,
+    )
+    # Сетка берётся у самого замера: у него свой шаг по краям, и
+    # угадывать её отдельно — верный способ сравнить не то с тем.
+    grid_u, grid_v = np.meshgrid(face.us, face.vs)
+    grid = np.column_stack([grid_u.ravel(), grid_v.ravel()])
+
+    # Клетки у самой кромки буквы пропускаем: там ответ зависит от того,
+    # с какой стороны от кромки лёг узел сетки.
+    clear = distance_to_outline(grid, segments) > 0.4
+    inside = is_inside(grid, segments)
+    # Замер отсчитывается от начала координат, поэтому «выступает» —
+    # это выше самого торца, а не выше нуля.
+    surface = face.heights.ravel()
+    raised = surface > float(np.median(surface)) + recipes.RELIEF / 2
+
+    assert raised[clear & inside].all(), "внутри буквы рельефа нет — надпись развернуло"
+    assert not raised[clear & ~inside].any(), "рельеф там, где буквы нет"
