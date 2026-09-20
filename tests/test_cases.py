@@ -330,9 +330,24 @@ def test_840_side_rails_survive(built: dict[str, Triangles], sign: int, dz: floa
     assert reach < THROUGH
 
 
-def test_840_rear_window_opens_the_bottom_buttons(built: dict[str, Triangles]) -> None:
+@pytest.mark.parametrize("pocket", recipes.E840_REAR_BUTTONS)
+def test_840_rear_windows_open_the_bottom_buttons(
+    built: dict[str, Triangles], pocket: tuple[float, float]
+) -> None:
+    middle = moved(((pocket[0] + pocket[1]) / 2, 0.0, 0.0))[0]
+    reach = depth_to_material(built["garmin-840"], 1, -1, (middle, 0.0, BAND_Z))
+    assert reach > THROUGH, "окно не попало в кнопку нижнего торца"
+
+
+def test_840_rear_wall_keeps_its_middle(built: dict[str, Triangles]) -> None:
+    """Между окнами задний торец остаётся сплошным.
+
+    Кнопки нижнего торца стоят на завалах углов, в 18.7 мм от середины
+    в обе стороны. Одно широкое окно сняло бы торец в поясе кнопок
+    целиком — два окна по кнопкам оставляют между собой 30 мм стенки.
+    """
     reach = depth_to_material(built["garmin-840"], 1, -1, (0.0, 0.0, BAND_Z))
-    assert reach > THROUGH
+    assert reach < THROUGH
 
 
 @pytest.mark.parametrize("dz", [-5.0, 7.0])
