@@ -8,9 +8,9 @@ from pathlib import Path
 
 import numpy as np
 
-from . import __version__, preview, solid
+from . import __version__, devices, preview, solid
 from .cases import CASES, build, case, sources_dir
-from .mesh import edge_counts, health, parts, read_stl, write_stl
+from .mesh import edge_counts, health, parts, ray_distances, read_stl, write_stl
 
 
 def _find(name: str) -> Path:
@@ -92,6 +92,36 @@ def command_preview(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_fit(args: argparse.Namespace) -> int:
+    """Показать, как прибор садится в чехол и видно ли его кнопки."""
+    item = case(args.slug)
+    device = devices.device_for(item.slug)
+    if device is None:
+        print(f"{item.slug}: модели прибора нет, сверять не с чем")
+        return 1
+
+    finished = solid.to_triangles(item.build())
+    inside = solid.from_triangles(devices.seated(device))
+    print(f"{item.title} + {device.title}")
+    print(f"  прибор {inside.volume() / 1000:.1f} см³, кнопок {len(devices.buttons(device))}")
+    closed = 0
+    for button in devices.buttons(device):
+        start, direction = devices.probe(device, button)
+        edges = [
+            devices.probe(device, button, at=button.along[0]),
+            devices.probe(device, button, at=button.along[1]),
+        ]
+        reach = [
+            ray_distances(finished, point[None, :], way)[0]
+            for point, way in [(start, direction), *edges]
+        ]
+        verdict = "окно есть" if min(reach) > 280.0 else "ЗАКРЫТА"
+        closed += min(reach) <= 280.0
+        print(f"  {button.describe()}  → {verdict}")
+    print("  все кнопки открыты" if not closed else f"  закрытых кнопок: {closed}")
+    return 0 if not closed else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cycling-cases",
@@ -116,6 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
     splitter.add_argument("stl", help="путь к файлу или имя файла в input_data")
     splitter.add_argument("--out", default="dist/parts", help="куда складывать тела")
     splitter.set_defaults(handler=command_split)
+
+    fitting = commands.add_parser("fit", help="как прибор садится в чехол и видно ли кнопки")
+    fitting.add_argument("slug", help="имя чехла, например garmin-840")
+    fitting.add_argument("--source", action="store_true", help=argparse.SUPPRESS)
+    fitting.set_defaults(handler=command_fit)
 
     viewer = commands.add_parser("preview", help="отрендерить превью каждого чехла")
     viewer.add_argument("--out", default="preview", help="куда складывать PNG")
