@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from cycling_cases.cases import CASES, sources_dir
+from cycling_cases.devices import DEVICES
 from cycling_cases.mesh import edge_counts, is_watertight, parts, read_stl
 from cycling_cases.recipes import E840_BUTTON_POCKETS, E840_PART, pick_case
 from walls import thin_wall_runs, wall_thickness
@@ -30,12 +31,22 @@ def test_sources_are_binary_stl() -> None:
         assert len(read_stl(item.source)) > 0
 
 
+RAW = "*Mesh.stl"
+"""Как приезжают сырые сканы.
+
+Скан прибора весит шестнадцать мегабайт — в git такому файлу не место.
+Его кладут в `input_data` под именем с `Mesh`, git его игнорирует, а
+в репозиторий уходит прореженная копия под своим именем.
+"""
+
+
 def test_every_source_is_registered() -> None:
     # Новый чехол начинается с файла в `input_data` и записи в `CASES`.
     # Если файл положили, а запись забыли, он молча не попадёт ни в сборку,
     # ни в релиз — поэтому тест ловит это сразу.
-    on_disk = {path.name for path in sources_dir().glob("*.stl")}
-    registered = {item.source_name for item in CASES}
+    raw = {path.name for path in sources_dir().glob(RAW)}
+    on_disk = {path.name for path in sources_dir().glob("*.stl")} - raw
+    registered = {item.source_name for item in CASES} | {item.source_name for item in DEVICES}
     forgotten = on_disk - registered
     assert not forgotten, f"исходники есть, а записи в CASES нет: {sorted(forgotten)}"
     missing = registered - on_disk
