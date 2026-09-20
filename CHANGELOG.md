@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.2.0...v0.3.0) (2026-09-20)
+
+
+### Новое
+
+* find the buttons of the device from its own model ([ed3c8e3](https://github.com/dchernykh1984/CyclingSiliconCases/commit/ed3c8e347a55971b18483202f2df6fdbb68bad99))
+* report how the device sits in its case ([5edcac4](https://github.com/dchernykh1984/CyclingSiliconCases/commit/5edcac407079ddda2d8b62748b819c5c86ee60ed))
+
+
+### Исправления
+
+* cut the rear windows where the bottom buttons actually are ([6e4e00c](https://github.com/dchernykh1984/CyclingSiliconCases/commit/6e4e00c2485762f377bb569dea015bfef35866c6))
+
+
+### Документация
+
+* write down the device template and what it proved ([0197b7b](https://github.com/dchernykh1984/CyclingSiliconCases/commit/0197b7ba08e538beddd6fb28ac5b3d4823e14821))
+
 ## [0.2.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.1.0...v0.2.0) (2026-09-19)
 
 
