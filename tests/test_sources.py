@@ -31,12 +31,16 @@ def test_sources_are_binary_stl() -> None:
         assert len(read_stl(item.source)) > 0
 
 
-RAW = "mesh.stl"
+RAW = ("Mesh.stl", "Mesh.STL")
 """Как приезжают сырые сканы.
 
 Скан прибора весит шестнадцать мегабайт — в git такому файлу не место.
 Его кладут в `input_data` под именем, кончающимся на `Mesh.stl`, git
 его игнорирует, а в репозиторий уходит прореженная копия.
+
+Список повторяет шаблоны из `.gitignore` буква в букву, с тем же
+регистром. Иначе файл, который git не игнорирует, тест молча
+пропустил бы — и он не попал бы ни в каталог, ни в релиз.
 """
 
 
@@ -45,11 +49,13 @@ def sources_on_disk() -> set[str]:
 
     Расширение сверяем без учёта регистра: у части чужих файлов оно
     записано прописными, и на Linux обычный шаблон `*.stl` их не видит.
+    А вот сырые сканы отсеиваем с учётом регистра — ровно так, как их
+    отсеивает git.
     """
     return {
         path.name
         for path in sources_dir().iterdir()
-        if path.suffix.lower() == ".stl" and not path.name.lower().endswith(RAW)
+        if path.suffix.lower() == ".stl" and not path.name.endswith(RAW)
     }
 
 
