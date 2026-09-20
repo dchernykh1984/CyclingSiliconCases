@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.3.0...v0.4.0) (2026-09-20)
+
+
+### Новое
+
+* emboss UBT 8 YEARS on the lids of both tool bottles ([fbb9875](https://github.com/dchernykh1984/CyclingSiliconCases/commit/fbb987507b6574b14130ce6c07f36b2ae14362e2))
+
+
+### Документация
+
+* correct the measured radii in the lid recipe ([9eefc05](https://github.com/dchernykh1984/CyclingSiliconCases/commit/9eefc05a36bec25f00aee1e824ad01734f041524))
+* describe the tool bottles and how their lids print ([68f975c](https://github.com/dchernykh1984/CyclingSiliconCases/commit/68f975c725c9d9767d421a9da2119568c3d6785d))
+* forbid tool attribution everywhere, not only in commits ([25d795d](https://github.com/dchernykh1984/CyclingSiliconCases/commit/25d795d390cae906171ae6652c0e9d8a0229354a))
+
 ## [0.3.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.2.0...v0.3.0) (2026-09-20)
 
 
