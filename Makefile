@@ -43,7 +43,7 @@ preview:
 	$(UV) run cycling-cases preview --out $(PREVIEW)
 
 inspect:
-	@for stl in input_data/*.stl; do $(UV) run cycling-cases inspect "$$stl"; done
+	@find input_data -iname '*.stl' -print0 | xargs -0 -I{} $(UV) run cycling-cases inspect {}
 
 clean:
 	rm -rf $(DIST) $(PREVIEW) .pytest_cache .ruff_cache .mypy_cache
