@@ -72,13 +72,18 @@ def test_slugs_are_unique_and_tidy() -> None:
 
 
 def test_case_lookup() -> None:
-    assert case("garmin-830").computer == "Garmin Edge 830"
+    assert case("garmin-830").fits == "Garmin Edge 830"
     with pytest.raises(KeyError):
         case("garmin-1030")
 
 
 def test_filenames_are_named_after_the_case() -> None:
-    assert {item.filename for item in CASES} == {"garmin-830.stl", "garmin-840.stl"}
+    assert {item.filename for item in CASES} == {
+        "garmin-830.stl",
+        "garmin-840.stl",
+        "can-lid.stl",
+        "bottle-cap.stl",
+    }
 
 
 def test_build_writes_every_case(tmp_path: Path) -> None:

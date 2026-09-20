@@ -49,11 +49,11 @@ def sources_dir() -> Path:
 
 @dataclass(frozen=True, slots=True)
 class Case:
-    """Один чехол: исходник, правка поверх него и имя в релизе."""
+    """Одна деталь: исходник, правка поверх него и имя в релизе."""
 
     slug: str
     title: str
-    computer: str
+    fits: str
     source_name: str
     recipe: Recipe
     comment: str = ""
@@ -77,7 +77,7 @@ CASES: tuple[Case, ...] = (
     Case(
         slug="garmin-830",
         title="Чехол Garmin Edge 830",
-        computer="Garmin Edge 830",
+        fits="Garmin Edge 830",
         source_name="Garmin830.stl",
         recipe=recipes.garmin_830,
         comment="Надпись UBT 8 YEARS спереди, губы удержания по бокам и спереди",
@@ -85,10 +85,59 @@ CASES: tuple[Case, ...] = (
     Case(
         slug="garmin-840",
         title="Чехол Garmin Edge 840",
-        computer="Garmin Edge 840",
+        fits="Garmin Edge 840",
         source_name="Garmin840.stl",
         recipe=recipes.garmin_840,
         comment="Только чехол из раскладки: окна под все кнопки и надпись на носу",
+    ),
+    Case(
+        slug="can-lid",
+        title="Крышка банки для инструмента",
+        fits="банка obj_2_Can 170mm",
+        source_name="obj_1_Lid.stl",
+        recipe=recipes.can_lid,
+        comment="Надпись UBT 8 YEARS на наружном торце; деталь стоит надписью вверх",
+    ),
+    Case(
+        slug="bottle-cap",
+        title="Крышка фляжки для инструмента",
+        fits="фляжка 水壶3.3",
+        source_name="水壶盖3.1无孔.STL",
+        recipe=recipes.bottle_cap,
+        comment="Надпись UBT 8 YEARS на наружном торце; деталь стоит надписью вверх",
+    ),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Companion:
+    """Вторая половина пары: сосуд к своей крышке.
+
+    Банку и фляжку мы не правим — они печатаются как есть, прямо из
+    `input_data`. В релиз они не идут: релиз отдаёт то, что мы сделали,
+    а чужой файл байт в байт в нём выглядел бы как наша работа.
+    """
+
+    source_name: str
+    title: str
+    lid_slug: str
+    comment: str = ""
+
+    @property
+    def source(self) -> Path:
+        return sources_dir() / self.source_name
+
+
+COMPANIONS: tuple[Companion, ...] = (
+    Companion(
+        source_name="obj_2_Can 170mm.stl",
+        title="Банка для инструмента, 170 мм",
+        lid_slug="can-lid",
+    ),
+    Companion(
+        source_name="水壶3.3.STL",
+        title="Фляжка для инструмента, 166 мм",
+        lid_slug="bottle-cap",
     ),
 )
 

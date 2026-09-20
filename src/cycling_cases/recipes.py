@@ -317,3 +317,77 @@ def garmin_840(source: Triangles) -> Manifold:
     )
     body = body + nose.emboss(_lettering(E840_CAP), RELIEF, SINK)
     return body.translate(list(E840_CENTRE))
+
+
+# --------------------------------------------------------------------------
+# Крышки для банки и фляжки под инструмент
+# --------------------------------------------------------------------------
+
+LID_CAP = 7.0
+"""Высота прописной надписи на крышках, мм.
+
+Крышка — плоский диск, и строка ложится по хорде: при высоте 7 мм
+«UBT 8 YEARS» занимает 60.7 мм, а её углы отстоят от центра на 31.2 мм
+при радиусе плоской площадки 35 мм у фляжки и 36 у банки. Стойка буквы
+выходит 1.61 мм — на такой крышке можно было бы и крупнее, но тогда
+строка полезла бы на скругление кромки.
+"""
+
+
+def _lid(source: Triangles, axis: int, sign: int, flip: tuple[tuple[float, ...], ...]) -> Manifold:
+    """Крышка с выпуклой надписью на наружном торце, поставленная под печать.
+
+    Наружный торец у обеих крышек — плоский диск, изнутри резьба.
+    Надпись кладётся на этот диск и ориентируется так, чтобы читаться
+    снаружи.
+
+    Деталь разворачивается надписью вверх. Это не косметика: выпуклые
+    буквы нельзя напечатать на грани, которая лежит на столе, — их
+    пришлось бы печатать в воздухе. Значит, крышка печатается открытой
+    стороной вниз, и под потолок над резьбой нужна поддержка.
+    """
+    body = solid.from_triangles(source)
+    flat = source.reshape(-1, 3)
+    low, high = flat.min(axis=0), flat.max(axis=0)
+    origin = (low + high) / 2
+    origin[axis] = low[axis] if sign < 0 else high[axis]
+
+    line = _lettering(LID_CAP)
+    edge = line.extent()
+    half_width = float(max(abs(edge[0][0]), edge[1][0])) + 0.6
+    half_height = float(max(abs(edge[0][1]), edge[1][1])) + 0.6
+    face = panel.measure(
+        source,
+        axis=axis,
+        sign=sign,
+        origin=tuple(origin),
+        u_range=(-half_width, half_width),
+        v_range=(-half_height, half_height),
+    )
+    body = body + face.emboss(line, RELIEF, SINK)
+
+    body = body.transform(np.asarray(flip).tolist())
+    box = np.asarray(body.bounding_box())
+    return body.translate([-(box[0] + box[3]) / 2, -(box[1] + box[4]) / 2, -box[2]])
+
+
+CAN_LID_FLIP = ((-1.0, 0.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 0.0, -1.0, 0.0))
+"""Крышка банки: ось уже Z, но надпись смотрит вниз — поворот на 180° вокруг Y.
+
+Вокруг Y, а не вокруг X: поворот вокруг X перевернул бы и строку, и
+она читалась бы вверх ногами. Зеркалить нельзя тем более — буквы
+отразились бы.
+"""
+
+BOTTLE_CAP_FLIP = ((1.0, 0.0, 0.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, -1.0, 0.0, 0.0))
+"""Крышка фляжки: в файле она лежит на боку, ось вдоль Y — ставим на Z."""
+
+
+def can_lid(source: Triangles) -> Manifold:
+    """Крышка банки 77 мм: надпись на наружном торце."""
+    return _lid(source, axis=2, sign=-1, flip=CAN_LID_FLIP)
+
+
+def bottle_cap(source: Triangles) -> Manifold:
+    """Крышка фляжки 72 мм: надпись на наружном торце."""
+    return _lid(source, axis=1, sign=-1, flip=BOTTLE_CAP_FLIP)
