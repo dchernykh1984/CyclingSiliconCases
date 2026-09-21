@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from . import __version__, devices, preview, solid
-from .cases import CASES, build, case, sources_dir
+from .cases import CASES, COMPANIONS, build, case, sources_dir
 from .mesh import edge_counts, health, parts, ray_distances, read_stl, write_stl
 
 
@@ -23,9 +23,13 @@ def _find(name: str) -> Path:
 
 def command_list(args: argparse.Namespace) -> int:
     for item in CASES:
-        print(f"{item.slug:12s}  {item.title:28s}  из {item.source_name}")
+        print(f"{item.slug:12s}  {item.title:32s}  из {item.source_name}")
         if item.comment:
             print(f"{'':12s}  {item.comment}")
+    for vessel in COMPANIONS:
+        print(f"{vessel.slug:12s}  {vessel.title:32s}  из {vessel.source_name}")
+        if vessel.comment:
+            print(f"{'':12s}  {vessel.comment}")
     return 0
 
 

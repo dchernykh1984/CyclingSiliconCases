@@ -103,11 +103,12 @@ def test_lid_grew_only_by_the_lettering(lids: dict[str, Triangles], slug: str) -
     assert sorted((float(span[0]), float(span[1]))) == pytest.approx(across, abs=0.02)
 
 
-def test_companions_are_shipped_as_sources_only() -> None:
-    """Банка и фляжка лежат исходниками и в релиз не идут.
+def test_every_lid_has_its_vessel_in_the_release() -> None:
+    """Набор уходит парами: к каждой крышке свой сосуд.
 
-    Мы их не правим, а класть чужой файл в релиз байт в байт — значит
-    выдавать его за свою работу.
+    Сосуды мы не правим, но кладём в релиз копией — чтобы напечатать
+    набор, хватило скачать релиз и не ходить за второй половиной в
+    `input_data`.
     """
     assert {item.source_name for item in COMPANIONS} == {
         "obj_2_Can 170mm.stl",
@@ -115,9 +116,8 @@ def test_companions_are_shipped_as_sources_only() -> None:
     }
     for item in COMPANIONS:
         assert item.source.is_file(), f"нет исходника {item.source_name}"
-        assert cases.case(item.lid_slug), "у сосуда должна быть своя крышка"
-    shipped = {item.source_name for item in cases.CASES}
-    assert not shipped & {item.source_name for item in COMPANIONS}
+        assert cases.case(item.lid_slug).slug in LIDS, "у сосуда должна быть своя крышка"
+    assert {item.lid_slug for item in COMPANIONS} == set(LIDS)
 
 
 @pytest.mark.parametrize("slug", LIDS)

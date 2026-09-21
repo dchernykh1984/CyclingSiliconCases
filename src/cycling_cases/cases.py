@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,11 +114,17 @@ CASES: tuple[Case, ...] = (
 class Companion:
     """Вторая половина пары: сосуд к своей крышке.
 
-    Банку и фляжку мы не правим — они печатаются как есть, прямо из
-    `input_data`. В релиз они не идут: релиз отдаёт то, что мы сделали,
-    а чужой файл байт в байт в нём выглядел бы как наша работа.
+    Банку и фляжку мы не правим, но в релиз кладём — **копией байт в
+    байт**. Смысл релиза в том, чтобы скачать его целиком и пойти
+    печатать; отправлять человека за второй половиной набора в
+    `input_data` — значит экономить мегабайт ценой его времени.
+
+    Копия именно побайтовая, а не пересохранённая: прогон чужой сетки
+    через наш экспорт переварил бы её (сшивание вершин, float32) и
+    выдал бы за то же самое немного другой файл.
     """
 
+    slug: str
     source_name: str
     title: str
     lid_slug: str
@@ -127,19 +134,44 @@ class Companion:
     def source(self) -> Path:
         return sources_dir() / self.source_name
 
+    @property
+    def filename(self) -> str:
+        return f"{self.slug}.stl"
+
 
 COMPANIONS: tuple[Companion, ...] = (
     Companion(
+        slug="can",
         source_name="obj_2_Can 170mm.stl",
         title="Банка для инструмента, 170 мм",
         lid_slug="can-lid",
+        comment="Без правок, копия исходника — под крышку can-lid",
     ),
     Companion(
+        slug="bottle",
         source_name="水壶3.3.STL",
         title="Фляжка для инструмента, 166 мм",
         lid_slug="bottle-cap",
+        comment="Без правок, копия исходника — под крышку bottle-cap",
     ),
 )
+
+
+def companion(slug: str) -> Companion:
+    """Сосуд по короткому имени."""
+    for item in COMPANIONS:
+        if item.slug == slug:
+            return item
+    known = ", ".join(item.slug for item in COMPANIONS)
+    raise KeyError(f"нет сосуда {slug!r}; есть {known}")
+
+
+def part(slug: str) -> Case | Companion:
+    """Что угодно из релиза по короткому имени — деталь или сосуд."""
+    try:
+        return case(slug)
+    except KeyError:
+        return companion(slug)
 
 
 def case(slug: str) -> Case:
@@ -152,17 +184,24 @@ def case(slug: str) -> Case:
 
 
 def build(directory: Path, only: str | None = None) -> list[Path]:
-    """Собрать чехлы в каталог.
+    """Собрать в каталог всё, что уходит в релиз.
 
-    Опечатка в имени чехла — не пустая сборка, а ошибка: молча собрать
-    ноль файлов и выйти с нулём хуже, чем сказать, что такого чехла нет.
+    Детали со своим рецептом режутся, сосуды копируются байт в байт.
+    Опечатка в имени — не пустая сборка, а ошибка: молча собрать ноль
+    файлов и выйти с нулём хуже, чем сказать, что такого имени нет.
     """
     if only is not None:
-        case(only)
+        part(only)
     directory.mkdir(parents=True, exist_ok=True)
     built = []
     for item in CASES:
         if only and item.slug != only:
             continue
         built.append(solid.save(item.build(), directory / item.filename))
+    for vessel in COMPANIONS:
+        if only and vessel.slug != only:
+            continue
+        target = directory / vessel.filename
+        shutil.copyfile(vessel.source, target)
+        built.append(target)
     return built

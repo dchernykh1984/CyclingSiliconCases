@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import filecmp
 from pathlib import Path
 
 import numpy as np
@@ -14,7 +15,7 @@ from manifold3d import Manifold
 
 from conftest import depth_to_material, inner_face
 from cycling_cases import cases, panel, recipes, solid
-from cycling_cases.cases import CASES, build, case, repository_root
+from cycling_cases.cases import CASES, COMPANIONS, build, case, repository_root
 from cycling_cases.cli import build_parser, main
 from cycling_cases.mesh import Triangles, edge_counts, parts
 
@@ -86,9 +87,16 @@ def test_filenames_are_named_after_the_case() -> None:
     }
 
 
-def test_build_writes_every_case(tmp_path: Path) -> None:
+def test_build_writes_everything_the_release_needs(tmp_path: Path) -> None:
+    """В релиз идёт весь набор: и наши детали, и сосуды к крышкам.
+
+    Иначе человек скачивает релиз, а печатать ему нечего — половина
+    набора осталась в `input_data`.
+    """
     written = build(tmp_path)
-    assert {path.name for path in written} == {item.filename for item in CASES}
+    assert {path.name for path in written} == {item.filename for item in CASES} | {
+        vessel.filename for vessel in COMPANIONS
+    }
     for path in written:
         assert path.stat().st_size > 1024
 
@@ -98,16 +106,35 @@ def test_build_can_do_a_single_case(tmp_path: Path) -> None:
     assert [path.name for path in written] == ["garmin-830.stl"]
 
 
-def test_release_files_differ_from_the_sources(tmp_path: Path) -> None:
-    """В релиз уходит наша деталь, а не копия скачанного файла.
+def test_parts_with_a_recipe_differ_from_their_sources(tmp_path: Path) -> None:
+    """У детали со своим рецептом результат не может совпасть с исходником.
 
     Первый релиз проекта отдавал исходники байт в байт — так было
     задумано, пока правок не было. Теперь правки есть, и совпадение
-    с исходником означало бы, что рецепт молча не применился.
+    означало бы, что рецепт молча не применился. К сосудам это не
+    относится: они копируются нарочно.
     """
-    for path in build(tmp_path):
-        source = case(path.stem).source
-        assert path.read_bytes() != source.read_bytes()
+    build(tmp_path)
+    for item in CASES:
+        built = tmp_path / item.filename
+        assert built.read_bytes() != item.source.read_bytes()
+
+
+def test_vessels_are_copied_byte_for_byte(tmp_path: Path) -> None:
+    """Сосуд уходит в релиз ровно тем файлом, что лежит в `input_data`.
+
+    Не пересохранённым: прогон чужой сетки через наш экспорт сшил бы
+    вершины и переписал координаты во float32 — получился бы немного
+    другой файл, выданный за тот же самый.
+    """
+    build(tmp_path)
+    for vessel in COMPANIONS:
+        assert filecmp.cmp(vessel.source, tmp_path / vessel.filename, shallow=False)
+
+
+def test_build_can_do_a_single_vessel(tmp_path: Path) -> None:
+    written = build(tmp_path, only="can")
+    assert [path.name for path in written] == ["can.stl"]
 
 
 def test_cli_knows_its_commands() -> None:
@@ -389,6 +416,12 @@ def test_build_refuses_an_unknown_slug(tmp_path: Path) -> None:
     # Опечатка в имени не должна оборачиваться пустой сборкой с кодом 0.
     with pytest.raises(KeyError):
         build(tmp_path, only="garmin-84")
+
+
+def test_slugs_are_unique_across_parts_and_vessels() -> None:
+    # Имя уходит в имя файла релиза, и совпадение затёрло бы один файл другим.
+    names = [item.slug for item in CASES] + [vessel.slug for vessel in COMPANIONS]
+    assert len(names) == len(set(names))
 
 
 def test_preview_refuses_an_unknown_slug() -> None:
