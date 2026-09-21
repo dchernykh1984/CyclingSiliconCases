@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import filecmp
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -480,15 +481,38 @@ def test_unknown_slug_names_everything_there_is() -> None:
 
 @pytest.mark.parametrize("vessel", COMPANIONS, ids=lambda vessel: vessel.slug)
 def test_recorded_orientation_matches_the_file(vessel) -> None:  # type: ignore[no-untyped-def]
-    """Ось сосуда записана верно — иначе предупреждение соврёт.
+    """Ось сосуда записана верно — по ней решается, нужен ли поворот.
 
-    Фляжка лежит в файле на боку, и человеку про это сказано в
-    каталоге. Если исходник заменят на стоячий, надпись останется, и
-    предупреждение начнёт врать в обратную сторону.
+    Фляжка лежит в исходнике на боку, и ей задан `stand`. Если
+    исходник заменят на стоячий (или наоборот), запись разойдётся с
+    файлом, и сборка либо повернёт лишний раз, либо не повернёт вовсе.
     """
     span = vessel.source and read_stl(vessel.source).reshape(-1, 3)
     size = span.max(axis=0) - span.min(axis=0)
     assert int(np.argmax(size)) == vessel.axis, "сосуд лежит не вдоль записанной оси"
+
+
+@pytest.mark.parametrize("vessel", COMPANIONS, ids=lambda vessel: vessel.slug)
+def test_every_vessel_in_the_release_stands_upright(tmp_path: Path, vessel) -> None:  # type: ignore[no-untyped-def]
+    """Ни один сосуд не уезжает в релиз лёжа.
+
+    README обещает, что все файлы релиза лежат так, как их надо
+    печатать. Проверка идёт по готовому файлу и накрывает оба пути —
+    и побайтовую копию, и поворот: сосуд, которому забыли задать
+    поворот, уедет лёжа и завалит именно этот тест.
+    """
+    build(tmp_path, only=vessel.slug)
+    flat = read_stl(tmp_path / vessel.filename).reshape(-1, 3)
+    span = flat.max(axis=0) - flat.min(axis=0)
+    assert int(np.argmax(span)) == 2, "сосуд лежит на боку"
+    assert flat[:, 2].min() == pytest.approx(0.0, abs=1e-4), "сосуд висит над столом"
+
+
+def test_a_sideways_vessel_without_a_turn_is_refused(tmp_path: Path) -> None:
+    """Забыть поворот нельзя: сборка скажет об этом, а не отдаст лежачий файл."""
+    lying = replace(cases.companion("bottle"), stand=None)
+    with pytest.raises(ValueError, match="лёжа"):
+        cases.stand_up(lying, tmp_path / "bottle.stl")
 
 
 def test_slugs_are_unique_across_parts_and_vessels() -> None:
