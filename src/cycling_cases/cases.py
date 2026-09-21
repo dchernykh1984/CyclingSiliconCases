@@ -128,6 +128,7 @@ class Companion:
     source_name: str
     title: str
     lid_slug: str
+    axis: int
     comment: str = ""
 
     @property
@@ -138,6 +139,16 @@ class Companion:
     def filename(self) -> str:
         return f"{self.slug}.stl"
 
+    @property
+    def upright(self) -> bool:
+        """Стоит ли сосуд в файле так, как его надо печатать.
+
+        Крышки разворачивает рецепт, а сосуды уходят копией байт в
+        байт — значит, лежащий на боку так и приедет, и человека надо
+        предупредить, а не молча отдать ему файл под поддержки.
+        """
+        return self.axis == 2
+
 
 COMPANIONS: tuple[Companion, ...] = (
     Companion(
@@ -145,14 +156,19 @@ COMPANIONS: tuple[Companion, ...] = (
         source_name="obj_2_Can 170mm.stl",
         title="Банка для инструмента, 170 мм",
         lid_slug="can-lid",
-        comment="Без правок, копия исходника — под крышку can-lid",
+        axis=2,
+        comment="Без правок, копия исходника — под крышку can-lid; стоит вертикально",
     ),
     Companion(
         slug="bottle",
         source_name="水壶3.3.STL",
         title="Фляжка для инструмента, 166 мм",
         lid_slug="bottle-cap",
-        comment="Без правок, копия исходника — под крышку bottle-cap",
+        axis=1,
+        comment=(
+            "Без правок, копия исходника — под крышку bottle-cap; "
+            "В СЛАЙСЕРЕ ПОСТАВИТЬ ВЕРТИКАЛЬНО: в файле лежит на боку"
+        ),
     ),
 )
 
@@ -167,11 +183,20 @@ def companion(slug: str) -> Companion:
 
 
 def part(slug: str) -> Case | Companion:
-    """Что угодно из релиза по короткому имени — деталь или сосуд."""
-    try:
-        return case(slug)
-    except KeyError:
-        return companion(slug)
+    """Что угодно из релиза по короткому имени — деталь или сосуд.
+
+    В ошибке перечисляем всё сразу: человек, опечатавшийся в имени
+    чехла, не должен читать, что «нет такого сосуда» и видеть список
+    из одних сосудов.
+    """
+    for item in CASES:
+        if item.slug == slug:
+            return item
+    for vessel in COMPANIONS:
+        if vessel.slug == slug:
+            return vessel
+    known = ", ".join([item.slug for item in CASES] + [vessel.slug for vessel in COMPANIONS])
+    raise KeyError(f"нет детали {slug!r}; есть {known}")
 
 
 def case(slug: str) -> Case:
