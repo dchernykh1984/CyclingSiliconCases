@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.4.0...v0.5.0) (2026-09-21)
+
+
+### Новое
+
+* ship the can and the bottle in the release next to their lids ([fab8809](https://github.com/dchernykh1984/CyclingSiliconCases/commit/fab8809c51b2300604a99b1dbe5cafdf8d7ac3d0))
+
+
+### Исправления
+
+* name every part when the slug is wrong and warn that the bottle lies down ([ee3ee9b](https://github.com/dchernykh1984/CyclingSiliconCases/commit/ee3ee9bc9438f732b79d5dab3e8857595bd3147c))
+
 ## [0.4.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.3.0...v0.4.0) (2026-09-20)
 
 
