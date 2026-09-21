@@ -17,7 +17,7 @@ from conftest import depth_to_material, inner_face
 from cycling_cases import cases, panel, recipes, solid
 from cycling_cases.cases import CASES, COMPANIONS, build, case, repository_root
 from cycling_cases.cli import build_parser, main
-from cycling_cases.mesh import Triangles, edge_counts, parts
+from cycling_cases.mesh import Triangles, edge_counts, parts, read_stl
 
 GRID = 0.3
 """Шаг сетки при замере рельефа надписи, мм."""
@@ -416,6 +416,30 @@ def test_build_refuses_an_unknown_slug(tmp_path: Path) -> None:
     # Опечатка в имени не должна оборачиваться пустой сборкой с кодом 0.
     with pytest.raises(KeyError):
         build(tmp_path, only="garmin-84")
+
+
+def test_unknown_slug_names_everything_there_is() -> None:
+    """Опечатался в имени чехла — увидь список чехлов, а не сосудов."""
+    with pytest.raises(KeyError) as complaint:
+        build(Path("/tmp"), only="garmin-84")
+    message = str(complaint.value)
+    for item in CASES:
+        assert item.slug in message
+    for vessel in COMPANIONS:
+        assert vessel.slug in message
+
+
+@pytest.mark.parametrize("vessel", COMPANIONS, ids=lambda vessel: vessel.slug)
+def test_recorded_orientation_matches_the_file(vessel) -> None:  # type: ignore[no-untyped-def]
+    """Ось сосуда записана верно — иначе предупреждение соврёт.
+
+    Фляжка лежит в файле на боку, и человеку про это сказано в
+    каталоге. Если исходник заменят на стоячий, надпись останется, и
+    предупреждение начнёт врать в обратную сторону.
+    """
+    span = vessel.source and read_stl(vessel.source).reshape(-1, 3)
+    size = span.max(axis=0) - span.min(axis=0)
+    assert int(np.argmax(size)) == vessel.axis, "сосуд лежит не вдоль записанной оси"
 
 
 def test_slugs_are_unique_across_parts_and_vessels() -> None:
