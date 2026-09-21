@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.5.0...v0.6.0) (2026-09-21)
+
+
+### Новое
+
+* stand the bottle on its base for the release ([1a5e3a0](https://github.com/dchernykh1984/CyclingSiliconCases/commit/1a5e3a0651d34a606a679f7f857b3dc314d89a54))
+
+
+### Исправления
+
+* refuse to ship a vessel that would arrive lying on its side ([2d7fbbd](https://github.com/dchernykh1984/CyclingSiliconCases/commit/2d7fbbdce4d150dd63d69f4138aad10c27a39607))
+
 ## [0.5.0](https://github.com/dchernykh1984/CyclingSiliconCases/compare/v0.4.0...v0.5.0) (2026-09-21)
 
 
