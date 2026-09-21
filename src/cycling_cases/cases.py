@@ -13,10 +13,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from manifold3d import Manifold
 
 from . import recipes, solid
-from .mesh import Triangles, read_stl
+from .mesh import Triangles, read_stl, write_stl
 
 PACKAGE_ROOT = Path(__file__).parent
 
@@ -122,6 +123,12 @@ class Companion:
     Копия именно побайтовая, а не пересохранённая: прогон чужой сетки
     через наш экспорт переварил бы её (сшивание вершин, float32) и
     выдал бы за то же самое немного другой файл.
+
+    Исключение — сосуд, который лежит в исходнике на боку. Такой мы
+    ставим на дно (`stand`): это поворот, а не правка формы, и
+    треугольники при этом остаются теми же, у них только переезжают
+    координаты. Форму по-прежнему не трогаем — объём до и после
+    совпадает, и это проверяется тестом.
     """
 
     slug: str
@@ -129,6 +136,7 @@ class Companion:
     title: str
     lid_slug: str
     axis: int
+    stand: tuple[tuple[float, ...], ...] | None = None
     comment: str = ""
 
     @property
@@ -140,14 +148,24 @@ class Companion:
         return f"{self.slug}.stl"
 
     @property
-    def upright(self) -> bool:
-        """Стоит ли сосуд в файле так, как его надо печатать.
+    def copied(self) -> bool:
+        """Уходит ли сосуд в релиз побайтовой копией.
 
-        Крышки разворачивает рецепт, а сосуды уходят копией байт в
-        байт — значит, лежащий на боку так и приедет, и человека надо
-        предупредить, а не молча отдать ему файл под поддержки.
+        Копией уходит тот, кто в исходнике уже стоит на дне. Лежащий
+        на боку мы поворачиваем — иначе слайсер получит стосемидесяти-
+        миллиметровый цилиндр, лежащий плашмя, и обложит его
+        поддержками по всей длине.
         """
-        return self.axis == 2
+        return self.stand is None
+
+
+BOTTLE_STAND = ((1.0, 0.0, 0.0, 0.0), (0.0, 0.0, -1.0, 0.0), (0.0, 1.0, 0.0, 0.0))
+"""Поворот фляжки на дно: ось Y исходника становится Z.
+
+Поворот на +90° вокруг X, а не на −90°: у фляжки закрытое дно на y=0,
+а резьбовое горлышко наверху, и обратный поворот поставил бы её
+горлышком в стол. Определитель матрицы +1 — это поворот, не зеркало.
+"""
 
 
 COMPANIONS: tuple[Companion, ...] = (
@@ -165,9 +183,10 @@ COMPANIONS: tuple[Companion, ...] = (
         title="Фляжка для инструмента, 166 мм",
         lid_slug="bottle-cap",
         axis=1,
+        stand=BOTTLE_STAND,
         comment=(
-            "Без правок, копия исходника — под крышку bottle-cap; "
-            "В СЛАЙСЕРЕ ПОСТАВИТЬ ВЕРТИКАЛЬНО: в файле лежит на боку"
+            "Форма без правок — под крышку bottle-cap; "
+            "в исходнике лежит на боку, в релизе поставлена на дно"
         ),
     ),
 )
@@ -226,7 +245,23 @@ def build(directory: Path, only: str | None = None) -> list[Path]:
     for vessel in COMPANIONS:
         if only and vessel.slug != only:
             continue
-        target = directory / vessel.filename
-        shutil.copyfile(vessel.source, target)
-        built.append(target)
+        built.append(stand_up(vessel, directory / vessel.filename))
     return built
+
+
+def stand_up(vessel: Companion, target: Path) -> Path:
+    """Положить сосуд в каталог сборки: копией или повёрнутым на дно.
+
+    Поворот делаем прямо по треугольникам, не прогоняя сетку через
+    булев движок: так у чужой формы не меняется ни один треугольник,
+    у них только переезжают координаты.
+    """
+    if vessel.stand is None:
+        shutil.copyfile(vessel.source, target)
+        return target
+    matrix = np.asarray(vessel.stand, dtype=np.float64)
+    moved = read_stl(vessel.source) @ matrix[:, :3].T + matrix[:, 3]
+    flat = moved.reshape(-1, 3)
+    low, high = flat.min(axis=0), flat.max(axis=0)
+    moved = moved - [(low[0] + high[0]) / 2, (low[1] + high[1]) / 2, low[2]]
+    return write_stl(target, moved)

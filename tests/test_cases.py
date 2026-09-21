@@ -17,7 +17,7 @@ from conftest import depth_to_material, inner_face
 from cycling_cases import cases, panel, recipes, solid
 from cycling_cases.cases import CASES, COMPANIONS, build, case, repository_root
 from cycling_cases.cli import build_parser, main
-from cycling_cases.mesh import Triangles, edge_counts, parts, read_stl
+from cycling_cases.mesh import Triangles, edge_counts, parts, ray_distances, read_stl
 
 GRID = 0.3
 """Шаг сетки при замере рельефа надписи, мм."""
@@ -120,16 +120,65 @@ def test_parts_with_a_recipe_differ_from_their_sources(tmp_path: Path) -> None:
         assert built.read_bytes() != item.source.read_bytes()
 
 
-def test_vessels_are_copied_byte_for_byte(tmp_path: Path) -> None:
-    """Сосуд уходит в релиз ровно тем файлом, что лежит в `input_data`.
+def test_vessels_that_already_stand_are_copied_byte_for_byte(tmp_path: Path) -> None:
+    """Стоящий сосуд уходит ровно тем файлом, что лежит в `input_data`.
 
     Не пересохранённым: прогон чужой сетки через наш экспорт сшил бы
     вершины и переписал координаты во float32 — получился бы немного
     другой файл, выданный за тот же самый.
     """
     build(tmp_path)
-    for vessel in COMPANIONS:
+    standing = [vessel for vessel in COMPANIONS if vessel.copied]
+    assert standing, "хоть один сосуд должен уходить копией"
+    for vessel in standing:
         assert filecmp.cmp(vessel.source, tmp_path / vessel.filename, shallow=False)
+
+
+@pytest.mark.parametrize(
+    "vessel", [item for item in COMPANIONS if not item.copied], ids=lambda item: item.slug
+)
+def test_a_turned_vessel_keeps_its_shape(tmp_path: Path, vessel) -> None:  # type: ignore[no-untyped-def]
+    """Сосуд, который мы ставим на дно, поворачивается — и только.
+
+    Поворот идёт по треугольникам, мимо булева движка, поэтому их
+    число обязано совпасть, а объём — сойтись до шума float32. Если
+    сойдётся не до шума, значит форму всё-таки тронули.
+    """
+    build(tmp_path, only=vessel.slug)
+    before = read_stl(vessel.source)
+    after = read_stl(tmp_path / vessel.filename)
+    assert len(after) == len(before)
+    assert solid.from_triangles(after).volume() == pytest.approx(
+        solid.from_triangles(before).volume(), rel=1e-6
+    )
+
+
+@pytest.mark.parametrize(
+    "vessel", [item for item in COMPANIONS if not item.copied], ids=lambda item: item.slug
+)
+def test_a_turned_vessel_stands_on_its_closed_end(tmp_path: Path, vessel) -> None:  # type: ignore[no-untyped-def]
+    """И стоит правильным концом вниз: дном на стол, горлышком вверх.
+
+    Обратный поворот дал бы ту же высоту и тот же объём, но поставил
+    бы фляжку горлышком в стол — на всех остальных проверках это
+    прошло бы незаметно.
+    """
+    build(tmp_path, only=vessel.slug)
+    mesh = read_stl(tmp_path / vessel.filename)
+    flat = mesh.reshape(-1, 3)
+    low, high = flat.min(axis=0), flat.max(axis=0)
+    assert int(np.argmax(high - low)) == 2, "сосуд лежит, а не стоит"
+    assert low[2] == pytest.approx(0.0, abs=1e-4)
+    assert (low[0] + high[0]) / 2 == pytest.approx(0.0, abs=0.01)
+
+    # Луч по оси снизу утыкается в дно сразу, а сверху проваливается
+    # в открытое горло до самого внутреннего дна. Перевернули бы —
+    # было бы наоборот.
+    top = float(high[2])
+    from_below = ray_distances(mesh, np.array([[0.0, 0.0, -50.0]]), (0, 0, 1))[0] - 50.0
+    from_above = ray_distances(mesh, np.array([[0.0, 0.0, top + 50.0]]), (0, 0, -1))[0] - 50.0
+    assert from_below == pytest.approx(0.0, abs=0.1), "снизу оказалось не дно"
+    assert from_above > top / 2, "сверху оказалось дно, а не горло"
 
 
 def test_build_can_do_a_single_vessel(tmp_path: Path) -> None:
