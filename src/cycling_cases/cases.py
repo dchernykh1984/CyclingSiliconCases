@@ -136,6 +136,8 @@ class Companion:
     title: str
     lid_slug: str
     axis: int
+    """Вдоль какой оси сосуд лежит в исходнике. Не `UPRIGHT` — нужен `stand`."""
+
     stand: tuple[tuple[float, ...], ...] | None = None
     comment: str = ""
 
@@ -157,6 +159,10 @@ class Companion:
         поддержками по всей длине.
         """
         return self.stand is None
+
+
+UPRIGHT = 2
+"""Ось, вдоль которой деталь стоит: Z. По ней сверяется, нужен ли поворот."""
 
 
 BOTTLE_STAND = ((1.0, 0.0, 0.0, 0.0), (0.0, 0.0, -1.0, 0.0), (0.0, 1.0, 0.0, 0.0))
@@ -230,9 +236,10 @@ def case(slug: str) -> Case:
 def build(directory: Path, only: str | None = None) -> list[Path]:
     """Собрать в каталог всё, что уходит в релиз.
 
-    Детали со своим рецептом режутся, сосуды копируются байт в байт.
-    Опечатка в имени — не пустая сборка, а ошибка: молча собрать ноль
-    файлов и выйти с нулём хуже, чем сказать, что такого имени нет.
+    Детали со своим рецептом режутся, сосуды уходят как есть: стоящий
+    в исходнике — побайтовой копией, лежащий на боку — повёрнутым на
+    дно. Опечатка в имени — не пустая сборка, а ошибка: молча собрать
+    ноль файлов и выйти с нулём хуже, чем сказать, что такого нет.
     """
     if only is not None:
         part(only)
@@ -257,6 +264,11 @@ def stand_up(vessel: Companion, target: Path) -> Path:
     у них только переезжают координаты.
     """
     if vessel.stand is None:
+        if vessel.axis != UPRIGHT:
+            raise ValueError(
+                f"{vessel.slug}: сосуд лежит вдоль оси {'XYZ'[vessel.axis]}, "
+                "а поворота на дно ему не задано — в релиз он уедет лёжа"
+            )
         shutil.copyfile(vessel.source, target)
         return target
     matrix = np.asarray(vessel.stand, dtype=np.float64)
